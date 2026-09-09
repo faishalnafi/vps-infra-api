@@ -17,9 +17,11 @@ Panduan lengkap untuk merekonstruksi/memasang ulang sistem notifikasi status VPS
 Setiap notifikasi berisi 2 blok laporan:
 
 1. **Laporan resource** (`vps-status-report.sh`): hostname, waktu, uptime, load average, CPU usage, RAM, swap, disk `/`, IP private & public, jumlah systemd unit yang gagal, status container Docker, top 3 proses berdasarkan CPU dan RAM.
-2. **Laporan infrastruktur** (`service-check.sh`, **baru**): OS + versi lengkap, kernel, dan status ✅/❌ tiap service yang terdeteksi terpasang — Docker, web server (Nginx/Apache), DBMS (MySQL/MariaDB/PostgreSQL/MongoDB/Redis), PHP-FPM, plus service custom Anda sendiri lewat `EXTRA_SERVICES` di `.env`.
+2. **Laporan infrastruktur** (`service-check.sh`, **baru**): OS + versi lengkap, kernel, **control panel yang terpasang** (aaPanel, CyberPanel, Plesk, cPanel/WHM, DirectAdmin, HestiaCP, VestaCP, Webmin — atau "tidak terdeteksi" kalau VPS dikelola langsung lewat SSH/CLI), dan status ✅/❌ tiap service yang terdeteksi terpasang — Docker, web server (Nginx/Apache), DBMS (MySQL/MariaDB/PostgreSQL/MongoDB/Redis), PHP-FPM, plus service custom Anda sendiri lewat `EXTRA_SERVICES` di `.env`.
 
 **Khusus notifikasi startup**, pesan **tidak langsung dikirim begitu OS boot** — script menunggu (dengan batas waktu) sampai semua service di atas benar-benar aktif, supaya begitu pesan 🟢 masuk, itu benar-benar berarti seluruh infrastruktur VPS sudah siap dipakai, bukan cuma OS-nya yang nyala. Detail mekanismenya di bagian 8.
+
+**Format ini SAMA di ketiga jenis notifikasi** (startup/shutdown/heartbeat) — jadi tiap heartbeat berkala (default tiap 1 jam) juga otomatis menampilkan service mana saja yang lagi bermasalah (❌ + ringkasan di header pesan), bukan cuma sekali saat boot.
 
 ## 2. Struktur folder
 
@@ -162,6 +164,7 @@ crontab -e
 
 OS: Ubuntu 22.04.3 LTS
 Kernel: 5.15.0-91-generic (x86_64)
+Control Panel: aaPanel (terdeteksi: /www/server/panel)
 
 Service Terdeteksi:
   ✅ Docker (docker.service) — Docker version 24.0.7, build afdd53b
@@ -201,6 +204,7 @@ Top 3 proses (RAM):
 
 OS: Ubuntu 22.04.3 LTS
 Kernel: 5.15.0-91-generic (x86_64)
+Control Panel: aaPanel (terdeteksi: /www/server/panel)
 
 Service Terdeteksi:
   ✅ Docker (docker.service) — Docker version 24.0.7, build afdd53b
@@ -224,6 +228,23 @@ Header 🟢 vs 🟡 (dan ✅/❌ per baris service) itulah sinyal cepat bagi dev
 4. Kalau sampai `READY_MAX_WAIT_SECONDS` (default **300 detik / 5 menit**) masih ada yang belum aktif → tetap kirim pesan, tapi ditandai 🟡 dengan daftar service yang belum aktif. **Tidak pernah didiamkan tanpa notifikasi sama sekali.**
 
 Kedua nilai ini bisa diubah lewat `.env` (`READY_MAX_WAIT_SECONDS`, `READY_CHECK_INTERVAL_SECONDS`) — lihat `.env.example`.
+
+### Deteksi control panel
+
+`service-check.sh` juga mengenali control panel VPS yang umum dipakai, berdasarkan direktori instalasi khasnya masing-masing (bukan lewat API resmi tiap panel, jadi sifatnya best-effort — tapi tiap panel biasanya punya lokasi instalasi unik yang jarang bentrok):
+
+| Panel | Ditandai lewat |
+|---|---|
+| aaPanel | `/www/server/panel` |
+| CyberPanel | `/usr/local/CyberPanel` |
+| Plesk | `/usr/local/psa` |
+| cPanel/WHM | `/usr/local/cpanel` |
+| DirectAdmin | `/usr/local/directadmin` |
+| HestiaCP | `/usr/local/hestia` |
+| VestaCP | `/usr/local/vesta` |
+| Webmin | `/usr/share/webmin` |
+
+Kalau tidak ada satu pun yang cocok, laporan akan menampilkan `Tidak terdeteksi (kemungkinan tanpa panel / dikelola lewat CLI-SSH langsung)`. Pengecekan ini hanya beberapa `[[ -d ... ]]` (test direktori) — tidak spawn proses sama sekali, jadi tidak menambah beban apa pun.
 
 ### Bagaimana notifikasi shutdown dijamin terkirim sebelum VPS benar-benar mati
 

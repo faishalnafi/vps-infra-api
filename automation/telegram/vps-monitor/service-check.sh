@@ -96,18 +96,46 @@ all_services_active() {
     return 0
 }
 
-# Bangun teks laporan OS + service (panggil SETELAH detect_installed_services / all_services_active)
+# Deteksi control panel VPS yang umum dipakai, berdasarkan direktori instalasi khas
+# masing-masing panel. Best-effort (bukan lewat API resmi tiap panel) tapi cukup akurat
+# karena tiap panel punya lokasi instalasi yang khas & jarang bentrok satu sama lain.
+# Sangat ringan - cuma beberapa "[[ -d ... ]]", tidak spawn proses apa pun.
+detect_control_panel() {
+    if [[ -d /www/server/panel ]]; then
+        echo "aaPanel (terdeteksi: /www/server/panel)"
+    elif [[ -d /usr/local/CyberPanel ]] || [[ -d /usr/local/CyberCP ]]; then
+        echo "CyberPanel (terdeteksi: /usr/local/CyberPanel)"
+    elif [[ -d /usr/local/psa ]]; then
+        echo "Plesk (terdeteksi: /usr/local/psa)"
+    elif [[ -d /usr/local/cpanel ]]; then
+        echo "cPanel/WHM (terdeteksi: /usr/local/cpanel)"
+    elif [[ -d /usr/local/directadmin ]]; then
+        echo "DirectAdmin (terdeteksi: /usr/local/directadmin)"
+    elif [[ -d /usr/local/hestia ]]; then
+        echo "HestiaCP (terdeteksi: /usr/local/hestia)"
+    elif [[ -d /usr/local/vesta ]]; then
+        echo "VestaCP (terdeteksi: /usr/local/vesta)"
+    elif [[ -d /usr/share/webmin ]] || [[ -d /etc/webmin ]]; then
+        echo "Webmin (terdeteksi: /usr/share/webmin)"
+    else
+        echo "Tidak terdeteksi (kemungkinan tanpa panel / dikelola lewat CLI-SSH langsung)"
+    fi
+}
+
+# Bangun teks laporan OS + panel + service (panggil SETELAH detect_installed_services / all_services_active)
 build_services_report() {
-    local os_pretty="n/a" kernel_ver arch
+    local os_pretty="n/a" kernel_ver arch panel_info
     if [[ -f /etc/os-release ]]; then
         # shellcheck disable=SC1091
         os_pretty="$(. /etc/os-release && echo "$PRETTY_NAME")"
     fi
     kernel_ver=$(uname -r)
     arch=$(uname -m)
+    panel_info=$(detect_control_panel)
 
     local out="<b>OS</b>: ${os_pretty}
 <b>Kernel</b>: ${kernel_ver} (${arch})
+<b>Control Panel</b>: ${panel_info}
 
 <b>Service Terdeteksi</b>:"
 
