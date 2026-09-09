@@ -45,6 +45,18 @@ vps-monitor/
 
 ## 4. Instalasi
 
+### 4a. Cara cepat (otomatis) — rekomendasi
+
+Salin folder `vps-monitor/` ini ke VPS, lalu dari dalam folder tersebut jalankan:
+
+```bash
+sudo ./install.sh
+```
+
+`install.sh` otomatis melakukan semua langkah manual di bawah (4b) sekaligus: salin ke `/opt/vps-monitor`, buat `.env` dari template, atur permission, pasang unit systemd, dan `enable` service/timer supaya langsung jalan tiap boot. Kalau `.env` baru dibuat dari template, script akan mengingatkan Anda untuk mengisi `TELEGRAM_BOT_TOKEN` & `TELEGRAM_CHAT_ID` lalu restart service — lewati bagian 4b dan 5, langsung ke bagian 7 untuk tes.
+
+### 4b. Cara manual (kalau ingin paham/kustomisasi tiap langkah)
+
 ```bash
 # 1. Salin folder ini ke VPS, misalnya ke /opt/vps-monitor
 sudo mkdir -p /opt/vps-monitor
@@ -62,7 +74,7 @@ sudo chmod +x /opt/vps-monitor/*.sh
 sudo chmod 600 /opt/vps-monitor/.env
 ```
 
-## 5. Setup via systemd (rekomendasi)
+## 5. Setup via systemd (rekomendasi — dilewati kalau sudah pakai `install.sh`)
 
 ```bash
 # Salin unit files ke systemd
