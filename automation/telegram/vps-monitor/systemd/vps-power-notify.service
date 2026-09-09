@@ -10,7 +10,10 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/opt/vps-monitor/notify-startup.sh
 ExecStop=/opt/vps-monitor/notify-shutdown.sh
-TimeoutStopSec=20
+# VPS TIDAK akan lanjut power-off/reboot sampai ExecStop di atas selesai ATAU timeout ini
+# tercapai (mana lebih dulu). 30s = margin aman di atas curl --max-time 15s + overhead
+# deteksi service (biasanya <2s total) di notify-shutdown.sh.
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
