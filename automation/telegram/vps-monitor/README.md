@@ -10,12 +10,16 @@ Panduan lengkap untuk merekonstruksi/memasang ulang sistem notifikasi status VPS
 
 | Event | Trigger | Script | Contoh judul pesan |
 |---|---|---|---|
-| VPS baru menyala | boot (systemd `ExecStart` / cron `@reboot`) | `notify-startup.sh` | 🟢 VPS BARU MENYALA |
-| VPS sedang dimatikan/reboot | shutdown (systemd `ExecStop`) | `notify-shutdown.sh` | 🔴 VPS SEDANG DIMATIKAN |
+| VPS baru menyala | boot (systemd `ExecStart` / cron `@reboot`) | `notify-startup.sh` | 🟢 SEMUA SERVICE NORMAL / 🟡 ADA YANG BELUM NORMAL |
+| VPS sedang dimatikan/reboot | shutdown (systemd `ExecStop`, **VPS menunggu sampai ini selesai**) | `notify-shutdown.sh` | 🔴 VPS SEDANG DIMATIKAN |
 | Laporan rutin | tiap interval (systemd timer / cron) | `notify-heartbeat.sh` | 📡 Status Berkala |
 
-Setiap notifikasi berisi laporan kondisi VPS yang sama (dibangun oleh `vps-status-report.sh`):
-hostname, waktu, uptime, load average, CPU usage, RAM, swap, disk `/`, IP private & public, jumlah systemd unit yang gagal, status container Docker, serta top 3 proses berdasarkan CPU dan RAM.
+Setiap notifikasi berisi 2 blok laporan:
+
+1. **Laporan resource** (`vps-status-report.sh`): hostname, waktu, uptime, load average, CPU usage, RAM, swap, disk `/`, IP private & public, jumlah systemd unit yang gagal, status container Docker, top 3 proses berdasarkan CPU dan RAM.
+2. **Laporan infrastruktur** (`service-check.sh`, **baru**): OS + versi lengkap, kernel, dan status ✅/❌ tiap service yang terdeteksi terpasang — Docker, web server (Nginx/Apache), DBMS (MySQL/MariaDB/PostgreSQL/MongoDB/Redis), PHP-FPM, plus service custom Anda sendiri lewat `EXTRA_SERVICES` di `.env`.
+
+**Khusus notifikasi startup**, pesan **tidak langsung dikirim begitu OS boot** — script menunggu (dengan batas waktu) sampai semua service di atas benar-benar aktif, supaya begitu pesan 🟢 masuk, itu benar-benar berarti seluruh infrastruktur VPS sudah siap dipakai, bukan cuma OS-nya yang nyala. Detail mekanismenya di bagian 8.
 
 ## 2. Struktur folder
 
@@ -23,10 +27,12 @@ hostname, waktu, uptime, load average, CPU usage, RAM, swap, disk `/`, IP privat
 vps-monitor/
 ├── README.md                      # panduan ini
 ├── .env.example                   # template kredensial & konfigurasi (copy jadi .env)
+├── install.sh                     # instalasi interaktif (Opsi A)
 ├── lib/
 │   └── telegram.sh                # fungsi kirim pesan ke Telegram Bot API
-├── vps-status-report.sh           # kumpulkan metrik VPS -> teks HTML
-├── notify-startup.sh              # notifikasi saat boot
+├── vps-status-report.sh           # kumpulkan metrik resource VPS -> teks HTML
+├── service-check.sh               # deteksi OS/Docker/DBMS/web server/PHP-FPM + status -> teks HTML
+├── notify-startup.sh              # notifikasi saat boot (dengan readiness-gate)
 ├── notify-shutdown.sh             # notifikasi saat shutdown/reboot
 ├── notify-heartbeat.sh            # notifikasi berkala
 ├── systemd/
@@ -148,13 +154,25 @@ crontab -e
 
 ## 7. Contoh pesan yang dikirim
 
+**Startup — semua service normal (kondisi ideal, 🟢):**
+
 ```
-📡 VPS-Production-01 - Status Berkala
+🟢 VPS-Production-01 BARU MENYALA — SEMUA SERVICE NORMAL
+✅ Semua service infrastruktur yang terdeteksi sudah berjalan normal (dikonfirmasi dalam 45s).
+
+OS: Ubuntu 22.04.3 LTS
+Kernel: 5.15.0-91-generic (x86_64)
+
+Service Terdeteksi:
+  ✅ Docker (docker.service) — Docker version 24.0.7, build afdd53b
+  ✅ Nginx (nginx.service) — nginx version: nginx/1.18.0 (Ubuntu)
+  ✅ MySQL/MariaDB (mysql.service) — mysql  Ver 8.0.35 for Linux
+  ✅ PHP-FPM (php8.1-fpm.service) — PHP 8.1.2 (cli) (built: Nov 14 2023)
+  ✅ Redis (redis-server.service) — Redis server v=7.0.11
 
 🖥 vps-jakarta-01
 🕒 2026-09-09 14:00:03 WIB
-
-Uptime: up 3 days, 4 hours, 12 minutes
+Uptime: up 3 minutes
 Load Average (1/5/15m): 0.15 0.22 0.18
 CPU Usage: 12%
 RAM: 1.2G / 3.8G terpakai
@@ -175,29 +193,75 @@ Top 3 proses (RAM):
   • docker-proxy    2.0%
 ```
 
-## 8. Troubleshooting
+**Startup — ada yang belum normal setelah batas waktu (🟡):**
+
+```
+🟡 VPS-Production-01 BARU MENYALA — ADA SERVICE BELUM NORMAL
+⚠️ Setelah menunggu 300s, service berikut BELUM aktif: MySQL/MariaDB, PHP-FPM
+
+OS: Ubuntu 22.04.3 LTS
+Kernel: 5.15.0-91-generic (x86_64)
+
+Service Terdeteksi:
+  ✅ Docker (docker.service) — Docker version 24.0.7, build afdd53b
+  ✅ Nginx (nginx.service) — nginx version: nginx/1.18.0 (Ubuntu)
+  ❌ MySQL/MariaDB (mysql.service) — mysql  Ver 8.0.35 for Linux
+  ❌ PHP-FPM (php8.1-fpm.service) — PHP 8.1.2 (cli) (built: Nov 14 2023)
+...
+```
+
+Header 🟢 vs 🟡 (dan ✅/❌ per baris service) itulah sinyal cepat bagi devops: kalau 🟢, seluruh infrastruktur dipastikan sudah siap; kalau 🟡, langsung terlihat jelas apa saja yang perlu dicek manual.
+
+## 8. Readiness Gate & Konsumsi Resource
+
+### Bagaimana readiness-gate bekerja (khusus startup)
+
+`notify-startup.sh` tidak langsung kirim pesan begitu OS selesai boot. Alurnya:
+
+1. Tunggu 15 detik awal (jaringan/DNS baru siap).
+2. Polling tiap `READY_CHECK_INTERVAL_SECONDS` (default **10 detik**): cek SEMUA service yang terdeteksi terpasang via `systemctl is-active` saja (lihat catatan resource di bawah).
+3. Begitu semua aktif → langsung kirim pesan 🟢 (tidak menunggu sampai batas waktu habis).
+4. Kalau sampai `READY_MAX_WAIT_SECONDS` (default **300 detik / 5 menit**) masih ada yang belum aktif → tetap kirim pesan, tapi ditandai 🟡 dengan daftar service yang belum aktif. **Tidak pernah didiamkan tanpa notifikasi sama sekali.**
+
+Kedua nilai ini bisa diubah lewat `.env` (`READY_MAX_WAIT_SECONDS`, `READY_CHECK_INTERVAL_SECONDS`) — lihat `.env.example`.
+
+### Bagaimana notifikasi shutdown dijamin terkirim sebelum VPS benar-benar mati
+
+`vps-power-notify.service` diset `Before=shutdown.target reboot.target halt.target` + `DefaultDependencies=no`. Artinya systemd **wajib menjalankan `ExecStop` (notify-shutdown.sh) dan menunggunya selesai — atau timeout — sebelum proses shutdown/reboot lanjut ke tahap power-off**. VPS tidak langsung mati begitu perintah shutdown diberikan; ia menunggu skrip ini dulu. Kombinasi dengan `After=network-online.target` juga membuat jaringan baru dimatikan **setelah** service ini selesai, jadi script masih sempat kirim ke internet. Batas waktu totalnya `TimeoutStopSec=30` di `vps-power-notify.service` (bisa diubah kalau perlu margin lebih besar).
+
+### Konsumsi resource — dipastikan ringan
+
+- **Bukan daemon.** Semua script (`notify-startup.sh`, `notify-heartbeat.sh`, `notify-shutdown.sh`) dijalankan systemd sebagai proses **sekali-jalan (`Type=oneshot`)** — begitu selesai, prosesnya keluar total dari memori. Tidak ada yang "nempel" resident di RAM di antara dua kejadian.
+- **Heartbeat & shutdown**: total eksekusi biasanya **di bawah 2 detik** (beberapa `systemctl is-active`/perintah versi ringan + 1 request HTTP ke Telegram).
+- **Startup (readiness-gate)**: bisa berlangsung sampai `READY_MAX_WAIT_SECONDS` (default 5 menit) kalau ada service yang lambat siap, TAPI hampir seluruh waktu itu adalah `sleep` (CPU ~0%), bukan polling berat. Tiap siklus polling hanya memanggil `systemctl is-active` (baca state internal systemd, sangat murah) — perintah yang lebih berat seperti `docker --version`/`nginx -v`/`php -v` **hanya dijalankan sekali di akhir**, untuk isi laporan final, bukan di setiap iterasi polling.
+- **Di luar 3 kejadian ini, tidak ada proses berjalan sama sekali** — heartbeat berikutnya baru aktif lagi sesuai jadwal timer (default tiap 1 jam), lalu selesai dan hilang lagi dari memori.
+
+## 9. Troubleshooting
 
 | Gejala | Kemungkinan penyebab | Solusi |
 |---|---|---|
 | Tidak ada pesan masuk sama sekali | Token/Chat ID salah, atau belum pernah chat bot-nya duluan | Cek ulang `.env`, pastikan sudah kirim `/start` ke bot Anda |
 | `Telegram API menolak pesan` di log | Format token salah, atau bot diblokir user | Jalankan manual `bash -x notify-heartbeat.sh` untuk lihat respons API |
-| Notifikasi shutdown tidak pernah sampai | Jaringan sudah mati duluan sebelum `ExecStop` selesai kirim (lihat bagian 9) | Ini keterbatasan bawaan, bukan bug — lihat bagian 9 |
-| `docker: command not found` muncul di laporan | Docker memang tidak terpasang di VPS ini | Normal, baris "Docker Containers" akan menampilkan "docker tidak terpasang" |
+| VPS terasa lambat mati/reboot (~sampai 30 detik) | Normal — systemd sengaja menunggu `notify-shutdown.sh` (lihat bagian 8) sebelum lanjut power-off | Bukan bug. Bisa dipercepat dengan mengecilkan `TimeoutStopSec` di `vps-power-notify.service` (risiko: notifikasi shutdown lebih sering gagal kalau Telegram API lambat merespons) |
+| Notifikasi shutdown tidak pernah sampai meski sudah menunggu | Telegram API sendiri yang tidak terjangkau (bukan soal timing lagi — lihat bagian 8) | Cek `curl -sS https://api.telegram.org` dari VPS; kalau VPS memang tanpa akses internet keluar saat shutdown, ini di luar kendali script |
+| Pesan startup 🟡 padahal service sebenarnya sudah aktif | `READY_MAX_WAIT_SECONDS` terlalu pendek untuk service yang lambat start (mis. DB besar yang lama recovery) | Perbesar `READY_MAX_WAIT_SECONDS` di `.env`, lalu `systemctl restart vps-power-notify.service` |
+| `docker: command not found` / service tidak muncul di laporan | Service memang tidak terpasang di VPS ini, atau tidak terdaftar sebagai unit systemd (mis. dijalankan manual/di dalam container) | Normal untuk yang memang tidak terpasang; untuk service custom, daftarkan lewat `EXTRA_SERVICES` di `.env` |
 | Log heartbeat (mode cron) tidak ada | Folder log belum dibuat | `sudo mkdir -p /var/log/vps-monitor` |
 
-## 9. Keterbatasan
+## 10. Keterbatasan
 
-- **Notifikasi shutdown bersifat best-effort.** Karena dikirim di detik-detik terakhir proses shutdown (lewat `ExecStop`), jika jaringan/DNS VPS sudah mati duluan sebelum `curl` sempat menghubungi Telegram API, pesan itu bisa gagal terkirim. Ini bukan bug, melainkan keterbatasan mekanisme shutdown itu sendiri.
+- **Notifikasi shutdown terjamin *dicoba* sebelum VPS power-off (systemd menunggu, lihat bagian 8), tapi pengiriman ke Telegram sendiri tetap bergantung pada Telegram API bisa dijangkau.** Kalau VPS benar-benar kehilangan akses internet sebelum `TimeoutStopSec` habis, pesan itu tetap bisa gagal — itu bukan lagi soal timing/urutan (yang sudah dijamin), melainkan ketersediaan jaringan/API di luar kendali script.
+- Deteksi service (bagian 8) hanya mengenali yang terdaftar sebagai **unit systemd**. Aplikasi yang dijalankan manual, lewat `screen`/`tmux`, atau di dalam container tanpa unit systemd sendiri tidak akan otomatis terdeteksi — tambahkan lewat `EXTRA_SERVICES` di `.env` kalau ingin ikut dipantau.
 - Metrik "CPU Usage" adalah snapshot sesaat (`top -bn1`), bukan rata-rata — bisa fluktuatif antar pemanggilan.
 - IP publik diambil dari `api.ipify.org`; kalau VPS tidak punya akses internet keluar (atau IP publik memang tidak relevan, misalnya di belakang NAT), field ini akan tampil `n/a`.
 
-## 10. Keamanan
+## 11. Keamanan
 
-- Jangan pernah commit file `.env` (berisi token bot asli) ke git — hanya `.env.example` yang boleh masuk repo.
+- Jangan pernah commit file `.env` (berisi token bot asli) ke git — hanya `.env.example` yang boleh masuk repo (`.gitignore` di root repo sudah memblokir ini).
 - `chmod 600 .env` agar hanya root yang bisa membacanya.
 - Token bot yang bocor bisa dicabut/diganti kapan saja lewat @BotFather → `/revoke`.
 
-## 11. Uninstall
+## 12. Uninstall
 
 ```bash
 sudo systemctl disable --now vps-power-notify.service vps-heartbeat.timer
