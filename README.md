@@ -14,8 +14,10 @@ vps-infra-api/
 │   └── custom-locations/      # Path-based routing & reverse proxy rules
 │       ├── object-storage-proxy-private.conf  # Referer-locked proxy to object storage
 │       └── object-storage-proxy-public.conf   # Open/direct-access proxy to object storage
+├── automation/
+│   └── telegram/
+│       └── vps-monitor/       # Notifikasi Telegram: startup, shutdown, heartbeat berkala
 ├── docker-compose/            # (planned) NPM, Portainer, Watchtower, monitoring stacks
-├── automation/                # (planned) Telegram alerts, backups, cron jobs
 └── templates/                 # (planned) .env examples
 ```
 
@@ -27,6 +29,10 @@ The two `.conf` files under `nginx-proxy-manager/custom-locations/` route path-b
 - **`object-storage-proxy-public.conf`** — no referer check; any client can hit the paths directly. Use this for public assets (e.g. CDN-style delivery) where open access is intended.
 
 Each provider block supports two upstream options (custom domain vs. the provider's default endpoint) — toggle between them by commenting/uncommenting the relevant lines. See the inline guides in each file for renaming a path (e.g. `/orca/` → `/kelp/`) and for adding a new provider from the dummy template block.
+
+## Telegram VPS monitor
+
+[`automation/telegram/vps-monitor/`](automation/telegram/vps-monitor/) sends VPS status notifications to Telegram: on boot, on shutdown/reboot, and on a recurring heartbeat (default every 1 hour). Each notification includes a detailed status report (uptime, load, CPU, RAM, disk, IPs, Docker containers, top processes). See its own [README](automation/telegram/vps-monitor/README.md) for full setup instructions (systemd or cron).
 
 ## Security & sanitization
 

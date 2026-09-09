@@ -1,0 +1,16 @@
+[Unit]
+Description=Kirim notifikasi Telegram saat VPS menyala (boot) dan dimatikan (shutdown/reboot)
+DefaultDependencies=no
+After=network-online.target
+Wants=network-online.target
+Before=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/vps-monitor/notify-startup.sh
+ExecStop=/opt/vps-monitor/notify-shutdown.sh
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

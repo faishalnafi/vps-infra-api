@@ -1,0 +1,20 @@
+# ==============================================================
+# ALTERNATIF untuk systemd (systemd/vps-power-notify.service + vps-heartbeat.timer).
+# Pakai ini kalau VPS Anda tidak pakai systemd, atau Anda lebih familiar dengan cron.
+# Install dengan: crontab -e   (lalu salin baris yang relevan di bawah ini)
+# Diasumsikan script ada di /opt/vps-monitor/ - sesuaikan path kalau berbeda.
+# ==============================================================
+
+# Heartbeat status VPS tiap 1 jam (ganti "0 * * * *" untuk mengubah interval,
+# misal "*/30 * * * *" untuk tiap 30 menit).
+0 * * * * /opt/vps-monitor/notify-heartbeat.sh >> /var/log/vps-monitor/heartbeat.log 2>&1
+
+# Notifikasi saat VPS baru menyala/reboot (jeda 30s menunggu jaringan siap).
+@reboot sleep 30 && /opt/vps-monitor/notify-startup.sh >> /var/log/vps-monitor/startup.log 2>&1
+
+# ==============================================================
+# CATATAN PENTING:
+# cron TIDAK punya event "shutdown" - untuk notifikasi saat VPS dimatikan,
+# WAJIB pakai systemd/vps-power-notify.service (memanfaatkan ExecStop).
+# cron hanya bisa menggantikan bagian heartbeat & startup di atas.
+# ==============================================================

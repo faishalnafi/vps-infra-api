@@ -1,0 +1,8 @@
+[Unit]
+Description=Laporan status VPS berkala ke Telegram (dipicu oleh vps-heartbeat.timer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/vps-monitor/notify-heartbeat.sh

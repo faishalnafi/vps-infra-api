@@ -1,0 +1,11 @@
+[Unit]
+Description=Jadwal laporan status VPS berkala (default: tiap 1 jam)
+
+[Timer]
+# Kirim laporan pertama 5 menit setelah boot, lalu ulangi tiap OnUnitActiveSec.
+OnBootSec=5min
+OnUnitActiveSec=1h
+Unit=vps-heartbeat.service
+
+[Install]
+WantedBy=timers.target
