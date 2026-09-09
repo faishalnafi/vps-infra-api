@@ -1,0 +1,8 @@
+# ==============================================================
+# ALTERNATIF untuk systemd (systemd/vps-backup.timer).
+# Install dengan: crontab -e   (lalu salin baris yang relevan)
+# Diasumsikan script ada di /opt/vps-backup/ - sesuaikan path kalau berbeda.
+# ==============================================================
+
+# Backup tiap hari jam 03:00
+0 3 * * * /opt/vps-backup/run-backup.sh >> /var/log/vps-backup-cron.log 2>&1

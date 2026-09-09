@@ -1,0 +1,10 @@
+[Unit]
+Description=VPS Backup Otomatis (DB + Docker volumes + data NPM -> object storage)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/vps-backup/run-backup.sh
+# Batas waktu generous - dump database besar & upload bisa makan waktu.
+TimeoutStartSec=3600

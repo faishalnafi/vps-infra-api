@@ -15,8 +15,9 @@ vps-infra-api/
 │       ├── object-storage-proxy-private.conf  # Referer-locked proxy to object storage
 │       └── object-storage-proxy-public.conf   # Open/direct-access proxy to object storage
 ├── automation/
-│   └── telegram/
-│       └── vps-monitor/       # Notifikasi Telegram: startup, shutdown, heartbeat berkala
+│   ├── telegram/
+│   │   └── vps-monitor/       # Notifikasi Telegram: startup, shutdown, heartbeat berkala
+│   └── backup/                # Backup otomatis DB/volume/NPM -> object storage (rclone)
 ├── docker-compose/            # (planned) NPM, Portainer, Watchtower, monitoring stacks
 └── templates/                 # (planned) .env examples
 ```
@@ -33,6 +34,10 @@ Each provider block supports two upstream options (custom domain vs. the provide
 ## Telegram VPS monitor
 
 [`automation/telegram/vps-monitor/`](automation/telegram/vps-monitor/) sends VPS status notifications to Telegram: on boot, on shutdown/reboot, and on a recurring heartbeat (default every 1 hour). Each notification includes a detailed status report (uptime, load, CPU, RAM, disk, IPs, Docker containers, top processes). See its own [README](automation/telegram/vps-monitor/README.md) for full setup instructions (systemd or cron).
+
+## VPS backup otomatis
+
+[`automation/backup/`](automation/backup/) dumps MySQL/MariaDB and PostgreSQL databases (one `.sql.gz` per database), MongoDB (one combined `.archive.gz`), selected Docker volumes, and Nginx Proxy Manager data (`.tar.gz`), then uploads everything to object storage via `rclone` (Cloudflare R2, AWS S3, GCS, or IDCloudHost S3), with automatic retention and Telegram alerts on failure. See its own [README](automation/backup/README.md) for setup (including per-provider `rclone config` steps) and restore instructions.
 
 ## Security & sanitization
 

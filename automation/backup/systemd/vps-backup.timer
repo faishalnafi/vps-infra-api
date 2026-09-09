@@ -1,0 +1,11 @@
+[Unit]
+Description=Jadwal VPS Backup Otomatis (default: tiap hari jam 03:00 waktu lokal VPS)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# Kalau VPS mati/off pas jadwalnya lewat, backup tetap dijalankan begitu VPS nyala lagi.
+Persistent=true
+Unit=vps-backup.service
+
+[Install]
+WantedBy=timers.target
