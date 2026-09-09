@@ -2,8 +2,30 @@
 
 Panduan lengkap untuk merekonstruksi/memasang ulang sistem notifikasi status VPS via Telegram: mengirim kondisi VPS **sangat detail** ke chat Telegram Anda saat VPS baru **menyala**, saat **dimatikan**, dan secara **berkala** selama VPS menyala (default tiap **1 jam**, bisa diubah).
 
-> **Dua jalur instalasi tersedia — pilih salah satu:**
-> - **[Opsi A — Otomatis (`install.sh`)](#4a-opsi-a--otomatis-installsh--rekomendasi)**: interaktif, tinggal jawab beberapa pertanyaan (Bot Token, Chat ID, dst.), langsung teruji & jalan stabil dalam sekali eksekusi.
+## Instalasi 1-baris (paling cepat)
+
+Tidak perlu clone/copy manual - jalankan langsung dari VPS sebagai root:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/faishalnafi/vps-infra-api/pro/automation/telegram/vps-monitor/bootstrap.sh | sudo bash
+```
+
+Perintah ini mengunduh repo (branch `pro`), lalu langsung menjalankan `install.sh` interaktif (bagian 4a) - tanya Bot Token, Chat ID, dst., seperti biasa. Kalau `curl` tidak tersedia, pakai `wget` sebagai gantinya:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/faishalnafi/vps-infra-api/pro/automation/telegram/vps-monitor/bootstrap.sh | sudo bash
+```
+
+> ⚠️ **Catatan keamanan**: perintah di atas menjalankan script langsung dari internet sebagai root (`curl | sudo bash`). Ini praktik umum (aaPanel, Docker, dll. juga pakai pola yang sama), tapi kalau Anda lebih hati-hati, unduh dulu lalu baca isinya sebelum eksekusi:
+> ```bash
+> curl -sSL -o bootstrap.sh https://raw.githubusercontent.com/faishalnafi/vps-infra-api/pro/automation/telegram/vps-monitor/bootstrap.sh
+> cat bootstrap.sh   # baca dulu isinya
+> sudo bash bootstrap.sh
+> ```
+
+> **Tiga jalur instalasi tersedia — pilih salah satu:**
+> - **1-baris di atas** — paling cepat, langsung dari GitHub, tanpa clone manual.
+> - **[Opsi A — Otomatis (`install.sh`)](#4a-opsi-a--otomatis-installsh--rekomendasi)**: sama seperti di atas tapi Anda yang unduh foldernya sendiri dulu (mis. sudah punya salinan lokal, atau tidak mau eksekusi langsung dari internet).
 > - **[Opsi B — Manual](#4b-opsi-b--manual-step-by-step)**: tiap langkah dilakukan sendiri, cocok kalau ingin paham detail atau kustomisasi di luar yang ditanyakan `install.sh`.
 
 ## 1. Fitur
@@ -29,6 +51,7 @@ Setiap notifikasi berisi 2 blok laporan:
 vps-monitor/
 ├── README.md                      # panduan ini
 ├── .env.example                   # template kredensial & konfigurasi (copy jadi .env)
+├── bootstrap.sh                   # instalasi 1-baris (download repo lalu jalankan install.sh)
 ├── install.sh                     # instalasi interaktif (Opsi A)
 ├── lib/
 │   └── telegram.sh                # fungsi kirim pesan ke Telegram Bot API
