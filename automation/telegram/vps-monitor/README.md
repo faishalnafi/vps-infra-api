@@ -2,6 +2,10 @@
 
 Panduan lengkap untuk merekonstruksi/memasang ulang sistem notifikasi status VPS via Telegram: mengirim kondisi VPS **sangat detail** ke chat Telegram Anda saat VPS baru **menyala**, saat **dimatikan**, dan secara **berkala** selama VPS menyala (default tiap **1 jam**, bisa diubah).
 
+> **Dua jalur instalasi tersedia — pilih salah satu:**
+> - **[Opsi A — Otomatis (`install.sh`)](#4a-opsi-a--otomatis-installsh--rekomendasi)**: interaktif, tinggal jawab beberapa pertanyaan (Bot Token, Chat ID, dst.), langsung teruji & jalan stabil dalam sekali eksekusi.
+> - **[Opsi B — Manual](#4b-opsi-b--manual-step-by-step)**: tiap langkah dilakukan sendiri, cocok kalau ingin paham detail atau kustomisasi di luar yang ditanyakan `install.sh`.
+
 ## 1. Fitur
 
 | Event | Trigger | Script | Contoh judul pesan |
@@ -45,17 +49,35 @@ vps-monitor/
 
 ## 4. Instalasi
 
-### 4a. Cara cepat (otomatis) — rekomendasi
+### 4a. Opsi A — Otomatis (`install.sh`) — rekomendasi
 
-Salin folder `vps-monitor/` ini ke VPS, lalu dari dalam folder tersebut jalankan:
+Siapkan dulu **Bot Token** dan **Chat ID** dari bagian 3 (Prasyarat), lalu salin folder `vps-monitor/` ini ke VPS. Dari dalam folder tersebut, jalankan:
 
 ```bash
 sudo ./install.sh
 ```
 
-`install.sh` otomatis melakukan semua langkah manual di bawah (4b) sekaligus: salin ke `/opt/vps-monitor`, buat `.env` dari template, atur permission, pasang unit systemd, dan `enable` service/timer supaya langsung jalan tiap boot. Kalau `.env` baru dibuat dari template, script akan mengingatkan Anda untuk mengisi `TELEGRAM_BOT_TOKEN` & `TELEGRAM_CHAT_ID` lalu restart service — lewati bagian 4b dan 5, langsung ke bagian 7 untuk tes.
+Script akan bertanya secara interaktif, lalu mengerjakan sisanya sendiri:
 
-### 4b. Cara manual (kalau ingin paham/kustomisasi tiap langkah)
+```text
+Telegram Bot Token (dari @BotFather): ..........
+Telegram Chat ID (dari @userinfobot / getUpdates): ..........
+Label VPS ini [default: <hostname>]: ..........
+Interval heartbeat dalam menit [default: 60]: ..........
+```
+
+Setelah dijawab, `install.sh` otomatis:
+
+1. **Menguji koneksi ke Telegram API** dengan token & chat ID yang baru diisi — kalau salah, langsung ketahuan sekarang juga (ada opsi lanjut/batalkan), bukan baru sadar setelah reboot dan tidak ada notifikasi masuk.
+2. Menyalin semua file ke `/opt/vps-monitor`.
+3. Menulis `.env` langsung dari jawaban Anda (tidak perlu buka `nano` sama sekali).
+4. Mengatur permission (`chmod +x` untuk script, `chmod 600` untuk `.env`).
+5. Memasang unit systemd, dengan interval heartbeat **langsung disesuaikan** ke angka yang Anda masukkan (tidak perlu edit file `.timer` manual).
+6. `systemctl enable --now` untuk service startup/shutdown dan timer heartbeat — otomatis jalan lagi kapan pun VPS reboot, tanpa campur tangan manual lagi.
+
+Kalau uji koneksi di langkah 1 berhasil, instalasi ini **satu kali jalan langsung stabil** — lewati bagian 4b dan 5, langsung ke bagian 7 untuk lihat contoh hasilnya atau bagian 8 kalau ada kendala.
+
+### 4b. Opsi B — Manual (step by step)
 
 ```bash
 # 1. Salin folder ini ke VPS, misalnya ke /opt/vps-monitor

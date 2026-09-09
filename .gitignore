@@ -1,0 +1,8 @@
+# Real credentials/config - never commit, only *.example / *.sample versions
+.env
+.env.*
+!*.env.example
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
